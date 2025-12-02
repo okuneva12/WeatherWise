@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
-import 'screens/favorites_screen.dart';
 
 void main() {
   runApp(const MainApp());
@@ -15,8 +14,11 @@ class MainApp extends StatelessWidget {
       title: 'WeatherWise',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        fontFamily: 'Roboto',
+        useMaterial3: true,
       ),
       home: const HomeScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

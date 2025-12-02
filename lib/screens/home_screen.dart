@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
+import 'favorites_screen.dart';
+import 'search_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {  // ← Изменили на StatefulWidget!
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String currentCity = 'Москва (Авто)';
+  String temperature = '25°C';
+  String condition = 'Солнечно';
+
+  void _updateCity(String newCity) {
+    setState(() {
+      currentCity = newCity;
+      // Здесь будет запрос к API в ЛР6
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -10,9 +28,16 @@ class HomeScreen extends StatelessWidget {
         title: const Text('WeatherWise'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.favorite_border),
+            icon: const Icon(Icons.favorite),
             onPressed: () {
-              // Навигация будет в ЛР5
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FavoritesScreen(
+                    onCitySelected: _updateCity,
+                  ),
+                ),
+              );
             },
           ),
         ],
@@ -24,16 +49,31 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Заголовок с городом
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.location_on, color: Colors.blue),
-                  SizedBox(width: 8),
+                  const Icon(Icons.location_on, color: Colors.blue),
+                  const SizedBox(width: 8),
                   Text(
-                    'Москва (Авто)',
-                    style: TextStyle(
+                    currentCity,
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SearchScreen(),
+                        ),
+                      ).then((selectedCity) {
+                        if (selectedCity != null) {
+                          _updateCity(selectedCity as String);
+                        }
+                      });
+                    },
                   ),
                 ],
               ),
@@ -43,19 +83,19 @@ class HomeScreen extends StatelessWidget {
               Center(
                 child: Column(
                   children: [
-                    const Text(
-                      '25°C',
-                      style: TextStyle(
+                    Text(
+                      temperature,
+                      style: const TextStyle(
                         fontSize: 64,
                         fontWeight: FontWeight.w300,
                       ),
                     ),
-                    const Text(
-                      'Солнечно',
-                      style: TextStyle(fontSize: 20, color: Colors.grey),
+                    Text(
+                      condition,
+                      style: const TextStyle(fontSize: 20, color: Colors.grey),
                     ),
                     const SizedBox(height: 20),
-                    Icon(Icons.wb_sunny, size: 100, color: Colors.orange),
+                    const Icon(Icons.wb_sunny, size: 100, color: Colors.orange),
                   ],
                 ),
               ),
@@ -99,11 +139,27 @@ class HomeScreen extends StatelessWidget {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.favorite_border),
                       label: const Text('Добавить в избранное'),
-                      onPressed: () {},
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Город добавлен в избранное'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FavoritesScreen(
+                              onCitySelected: _updateCity,
+                            ),
+                          ),
+                        );
+                      },
                       child: const Text('Перейти к избранным'),
                     ),
                   ],
