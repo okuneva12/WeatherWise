@@ -25,3 +25,4 @@ REM Запуск скрипта через Git Bash
 
 pause
 
+

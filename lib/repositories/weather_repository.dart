@@ -46,3 +46,4 @@ class WeatherRepository {
     await _storageService.saveFavoriteCities(favorites);
   }
 }
+

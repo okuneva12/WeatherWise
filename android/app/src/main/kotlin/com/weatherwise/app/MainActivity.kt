@@ -1,5 +1,7 @@
-package com.example.weatherwise_app
+package com.weatherwise.app
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity: FlutterActivity()
+
+

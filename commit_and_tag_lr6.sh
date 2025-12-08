@@ -182,3 +182,4 @@ echo "Коммит: $(git log -1 --oneline)"
 echo "Тег lr6: $(git describe --tags lr6 2>/dev/null || echo 'не отправлен')"
 echo ""
 
+

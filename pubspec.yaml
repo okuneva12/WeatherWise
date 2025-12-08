@@ -1,5 +1,5 @@
 name: weatherwise
-description: Weather forecast application
+description: WeatherWise - Умное приложение для прогноза погоды
 publish_to: 'none'
 version: 1.0.0+1
 
