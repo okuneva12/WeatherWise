@@ -1,5 +1,8 @@
 class WeatherData {
   final String cityName;
+  final String country;
+  final double lat;
+  final double lon;
   final double temperature;
   final String description;
   final int humidity;
@@ -9,6 +12,9 @@ class WeatherData {
 
   WeatherData({
     required this.cityName,
+    required this.country,
+    required this.lat,
+    required this.lon,
     required this.temperature,
     required this.description,
     required this.humidity,
@@ -20,12 +26,15 @@ class WeatherData {
   factory WeatherData.fromJson(Map<String, dynamic> json) {
     return WeatherData(
       cityName: json['name'] ?? 'Неизвестно',
-      temperature: (json['main']['temp'] ?? 0).toDouble(),
-      description: json['weather'][0]['description'] ?? 'Нет данных',
-      humidity: json['main']['humidity'] ?? 0,
-      windSpeed: (json['wind']['speed'] ?? 0).toDouble(),
-      pressure: json['main']['pressure'] ?? 0,
-      iconCode: json['weather'][0]['icon'] ?? '01d',
+      country: json['sys']?['country'] ?? '',
+      lat: (json['coord']?['lat'] ?? 0).toDouble(),
+      lon: (json['coord']?['lon'] ?? 0).toDouble(),
+      temperature: (json['main']?['temp'] ?? 0).toDouble(),
+      description: (json['weather']?[0]?['description'] ?? 'Нет данных') as String,
+      humidity: json['main']?['humidity'] ?? 0,
+      windSpeed: (json['wind']?['speed'] ?? 0).toDouble(),
+      pressure: json['main']?['pressure'] ?? 0,
+      iconCode: (json['weather']?[0]?['icon'] ?? '01d') as String,
     );
   }
 }
@@ -53,9 +62,9 @@ class City {
   }
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'country': country,
-    'lat': lat,
-    'lon': lon,
-  };
+        'name': name,
+        'country': country,
+        'lat': lat,
+        'lon': lon,
+      };
 }

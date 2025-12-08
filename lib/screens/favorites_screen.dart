@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'search_screen.dart'; // ← ВАЖНО: этот импорт должен быть
+import 'package:provider/provider.dart';
+
+import '../models/weather_model.dart';
+import '../viewmodels/weather_viewmodel.dart';
+import 'search_screen.dart';
 
 class FavoritesScreen extends StatefulWidget {
   final Function(String)? onCitySelected;
@@ -11,24 +15,11 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
-  List<Map<String, String>> favoriteCities = [
-    {'city': 'Москва', 'temperature': '25°C', 'condition': '☀️'},
-    {'city': 'Санкт-Петербург', 'temperature': '18°C', 'condition': '🌧️'},
-    {'city': 'Казань', 'temperature': '22°C', 'condition': '⛅'},
-    {'city': 'Сочи', 'temperature': '28°C', 'condition': '☀️'},
-  ];
-
-  void _removeCity(int index) {
-    setState(() {
-      final removedCity = favoriteCities[index]['city'];
-      favoriteCities.removeAt(index);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Город $removedCity удалён из избранного'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WeatherViewModel>().loadFavoriteCities();
     });
   }
 
@@ -42,84 +33,113 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Column(
-        children: [
-          // Список избранных городов
-          Expanded(
-            child: ListView.builder(
-              itemCount: favoriteCities.length,
-              itemBuilder: (context, index) {
-                final city = favoriteCities[index];
-                return Dismissible(
-                  key: Key(city['city']!),
-                  background: Container(color: Colors.red),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (direction) => _removeCity(index),
-                  child: Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      leading: Text(city['condition']!, style: const TextStyle(fontSize: 24)),
-                      title: Text(
-                        city['city']!,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      trailing: Text(
-                        city['temperature']!,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      onTap: () {
-                        if (widget.onCitySelected != null) {
-                          widget.onCitySelected!(city['city']!);
-                        }
-                        Navigator.pop(context);
-                      },
-                      onLongPress: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Удалить город?'),
-                            content: Text('Вы действительно хотите удалить ${city['city']} из избранного?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Отмена'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  _removeCity(index);
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('Удалить', style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+      body: Consumer<WeatherViewModel>(
+        builder: (context, viewModel, _) {
+          if (viewModel.isFavoritesLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          // Кнопка добавления нового города
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_location),
-              label: const Text('Добавить новый город'),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SearchScreen(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
+          final favorites = viewModel.favoriteCities;
+          if (favorites.isEmpty) {
+            return const Center(
+              child: Text('Избранных городов пока нет'),
+            );
+          }
+
+          return Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: favorites.length,
+                  itemBuilder: (context, index) {
+                    final City city = favorites[index];
+                    return Dismissible(
+                      key: Key('${city.name}_${city.country}'),
+                      background: Container(color: Colors.red),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (_) => _removeCity(viewModel, city),
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          leading: const Icon(Icons.location_city, color: Colors.blue),
+                          title: Text(
+                            '${city.name}, ${city.country}',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            if (widget.onCitySelected != null) {
+                              widget.onCitySelected!(city.name);
+                            }
+                            await context.read<WeatherViewModel>().loadWeatherByCity(city.name);
+                            if (mounted && context.mounted) {
+                              Navigator.pop(context, city);
+                            }
+                          },
+                          onLongPress: () => _confirmDelete(viewModel, city),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.add_location),
+                  label: const Text('Добавить новый город'),
+                  onPressed: () async {
+                    final city = await Navigator.push<City?>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SearchScreen(),
+                      ),
+                    );
+                    if (city != null) {
+                      await viewModel.addFavoriteCity(city);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _removeCity(WeatherViewModel viewModel, City city) async {
+    await viewModel.removeFavoriteCity(city);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Город ${city.name} удалён из избранного'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _confirmDelete(WeatherViewModel viewModel, City city) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить город?'),
+        content: Text('Вы действительно хотите удалить ${city.name} из избранного?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _removeCity(viewModel, city);
+            },
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/weather_provider.dart';
+
 import '../models/weather_model.dart';
-import './favorites_screen.dart';  
-import './search_screen.dart';
+import '../viewmodels/weather_viewmodel.dart';
+import 'favorites_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,10 +18,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Загружаем погоду для Москвы при запуске
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<WeatherProvider>(context, listen: false);
-      provider.fetchWeatherByCity('Moscow');
+      final viewModel = Provider.of<WeatherViewModel>(context, listen: false);
+      viewModel
+        ..loadFavoriteCities()
+        ..loadWeatherByCity('Moscow');
     });
   }
 
@@ -39,46 +40,59 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.favorite),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final viewModel = context.read<WeatherViewModel>();
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const FavoritesScreen(),
                 ),
               );
+              await viewModel.loadFavoriteCities();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => _showCitySearchDialog(context),
           ),
         ],
       ),
-      body: Consumer<WeatherProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
+      body: Consumer<WeatherViewModel>(
+        builder: (context, viewModel, child) {
+          if (viewModel.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (provider.error != null) {
+          if (viewModel.error != null && viewModel.currentWeather == null) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Ошибка: ${provider.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 18, color: Colors.red),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => provider.fetchWeatherByCity('Moscow'),
-                    child: const Text('Попробовать снова'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      viewModel.error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16, color: Colors.red),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Попробовать снова'),
+                      onPressed: () {
+                        viewModel.clearError();
+                        viewModel.loadWeatherByCity('Moscow');
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
-          final weather = provider.currentWeather;
+          final weather = viewModel.currentWeather;
           if (weather == null) {
             return Center(
               child: Column(
@@ -92,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
-                    onPressed: () => provider.fetchWeatherByCity('Moscow'),
+                    onPressed: () => viewModel.loadWeatherByCity('Moscow'),
                     child: const Text('Загрузить погоду'),
                   ),
                 ],
@@ -100,37 +114,71 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          return _buildWeatherContent(weather, context, provider);
+          return Stack(
+            children: [
+              _buildWeatherContent(weather, context, viewModel),
+              if (viewModel.error != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            viewModel.error!,
+                            style: TextStyle(color: Colors.red.shade700, fontSize: 14),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, color: Colors.red.shade700, size: 20),
+                          onPressed: () => viewModel.clearError(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showCitySearchDialog(context);
-        },
+        onPressed: () => _showCitySearchDialog(context),
         child: const Icon(Icons.search),
       ),
     );
   }
 
   Widget _buildWeatherContent(
-      WeatherData weather,
-      BuildContext context,
-      WeatherProvider provider
-      ) {
+    WeatherData weather,
+    BuildContext context,
+    WeatherViewModel viewModel,
+  ) {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок с городом
             Row(
               children: [
                 const Icon(Icons.location_on, color: Colors.blue),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    weather.cityName,
+                    '${weather.cityName}, ${weather.country}',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -140,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   onPressed: () {
-                    provider.fetchWeatherByCity(weather.cityName);
+                    viewModel.loadWeatherByCity(weather.cityName);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Обновление данных...'),
@@ -152,8 +200,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
-            // Основная информация о погоде
             Center(
               child: Column(
                 children: [
@@ -175,15 +221,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 100,
                     height: 100,
                     errorBuilder: (context, error, stackTrace) {
-                      return const Icon(Icons.cloud, size: 100, color: Colors.grey);
+                      return const Icon(Icons.wb_sunny, size: 100, color: Colors.orange);
                     },
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
-
-            // Дополнительные показатели
             const Text(
               'Дополнительные показатели',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -198,8 +242,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 30),
-
-            // Прогноз на 3 дня (заглушка)
             const Text(
               'Прогноз на 3 дня',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -213,21 +255,22 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 30),
-
-            // Кнопки действий
             Center(
               child: Column(
                 children: [
                   ElevatedButton.icon(
                     icon: const Icon(Icons.favorite_border),
                     label: const Text('Добавить в избранное'),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${weather.cityName} добавлен в избранное'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                    onPressed: () async {
+                      await viewModel.addCurrentWeatherToFavorites();
+                      if (mounted && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${weather.cityName} добавлен в избранное'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
                     },
                   ),
                   const SizedBox(height: 10),
@@ -301,8 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 final city = _cityController.text.trim();
                 if (city.isNotEmpty) {
-                  final provider = Provider.of<WeatherProvider>(context, listen: false);
-                  provider.fetchWeatherByCity(city);
+                  final viewModel = Provider.of<WeatherViewModel>(context, listen: false);
+                  viewModel.loadWeatherByCity(city);
                   Navigator.pop(context);
                   _cityController.clear();
                 }

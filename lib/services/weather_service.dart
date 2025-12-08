@@ -1,45 +1,120 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../models/weather_model.dart';
 
 class WeatherService {
-  static const String _apiKey = '23bbfa9edfde150ae45694cdd3c25c99';
+  WeatherService({required String apiKey}) : _apiKey = apiKey;
+
+  final String _apiKey;
   static const String _baseUrl = 'https://api.openweathermap.org/data/2.5';
 
   Future<WeatherData> getWeatherByCity(String cityName) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/weather?q=$cityName&units=metric&lang=ru&appid=$_apiKey'),
-    );
+    try {
+      final encodedCityName = Uri.encodeComponent(cityName);
+      final uri = Uri.parse('$_baseUrl/weather?q=$encodedCityName&units=metric&lang=ru&appid=$_apiKey');
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Превышено время ожидания запроса. Проверьте подключение к интернету.');
+        },
+      );
 
-    if (response.statusCode == 200) {
-      return WeatherData.fromJson(json.decode(response.body));
-    } else {
-      throw Exception('Failed to load weather data');
+      if (response.statusCode == 200) {
+        try {
+          return WeatherData.fromJson(json.decode(response.body) as Map<String, dynamic>);
+        } catch (e) {
+          throw Exception('Ошибка обработки данных: $e');
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception('Город "$cityName" не найден');
+      } else {
+        try {
+          final errorBody = json.decode(response.body) as Map<String, dynamic>?;
+          final errorMessage = errorBody?['message'] ?? 'Неизвестная ошибка';
+          throw Exception('Ошибка загрузки погоды (${response.statusCode}): $errorMessage');
+        } catch (e) {
+          throw Exception('Ошибка загрузки погоды (${response.statusCode})');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('timeout') || e.toString().contains('SocketException')) {
+        throw Exception('Нет подключения к интернету');
+      }
+      rethrow;
     }
   }
 
   Future<WeatherData> getWeatherByLocation(double lat, double lon) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/weather?lat=$lat&lon=$lon&units=metric&lang=ru&appid=$_apiKey'),
-    );
+    try {
+      final uri = Uri.parse('$_baseUrl/weather?lat=$lat&lon=$lon&units=metric&lang=ru&appid=$_apiKey');
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Превышено время ожидания запроса. Проверьте подключение к интернету.');
+        },
+      );
 
-    if (response.statusCode == 200) {
-      return WeatherData.fromJson(json.decode(response.body));
-    } else {
-      throw Exception('Failed to load weather data');
+      if (response.statusCode == 200) {
+        try {
+          return WeatherData.fromJson(json.decode(response.body) as Map<String, dynamic>);
+        } catch (e) {
+          throw Exception('Ошибка обработки данных: $e');
+        }
+      } else {
+        try {
+          final errorBody = json.decode(response.body) as Map<String, dynamic>?;
+          final errorMessage = errorBody?['message'] ?? 'Неизвестная ошибка';
+          throw Exception('Ошибка загрузки погоды (${response.statusCode}): $errorMessage');
+        } catch (e) {
+          throw Exception('Ошибка загрузки погоды (${response.statusCode})');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('timeout') || e.toString().contains('SocketException')) {
+        throw Exception('Нет подключения к интернету');
+      }
+      rethrow;
     }
   }
 
   Future<List<City>> searchCities(String query) async {
-    final response = await http.get(
-      Uri.parse('https://api.openweathermap.org/geo/1.0/direct?q=$query&limit=5&appid=$_apiKey'),
-    );
+    if (query.trim().isEmpty) {
+      return [];
+    }
+    
+    try {
+      final encodedQuery = Uri.encodeComponent(query);
+      final uri = Uri.parse('https://api.openweathermap.org/geo/1.0/direct?q=$encodedQuery&limit=5&appid=$_apiKey');
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw Exception('Превышено время ожидания запроса. Проверьте подключение к интернету.');
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => City.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to search cities');
+      if (response.statusCode == 200) {
+        try {
+          final List<dynamic> data = json.decode(response.body) as List<dynamic>;
+          return data.map((json) => City.fromJson(json as Map<String, dynamic>)).toList();
+        } catch (e) {
+          throw Exception('Ошибка обработки данных: $e');
+        }
+      } else {
+        try {
+          final errorBody = json.decode(response.body) as Map<String, dynamic>?;
+          final errorMessage = errorBody?['message'] ?? 'Неизвестная ошибка';
+          throw Exception('Ошибка поиска городов (${response.statusCode}): $errorMessage');
+        } catch (e) {
+          throw Exception('Ошибка поиска городов (${response.statusCode})');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('timeout') || e.toString().contains('SocketException')) {
+        throw Exception('Нет подключения к интернету');
+      }
+      rethrow;
     }
   }
 }
